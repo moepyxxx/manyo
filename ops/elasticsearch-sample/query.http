@@ -38,7 +38,7 @@ Content-Type: application/json
 
 {
   "tokenizer": "standard",
-  "text": "あかねさす 紫野に行き 標野行き 野守は見ずや 君が袖振る"
+  "text": "あかねさす紫野行き標野行き野守は見ずや君が袖振る"
 }
 
 ### kuromoji_tokenizerインストールした場合
@@ -48,7 +48,7 @@ Content-Type: application/json
 
 {
   "tokenizer": "kuromoji_tokenizer",
-  "text": "あかねさす紫野行き標野行き野守は見ずや君が袖振る"
+  "text": "私は元気です"
 }
 
 ### インデックスを登録する
@@ -112,6 +112,12 @@ Content-Type: application/json
   "text": "あかねさす紫野行き標野行き野守は見ずや君が袖振る"
 }
 
+### 
+## see: https://www.elastic.co/guide/en/elasticsearch/plugins/current/analysis-kuromoji.html
+GET http://localhost:9200/sample_index HTTP/1.1
+Content-Type: application/json
+
+
 ###
 GET http://localhost:9200/sample_index
 Content-Type: application/json
@@ -120,14 +126,14 @@ Content-Type: application/json
 POST http://localhost:9200/sample_index/_doc?pretty
 Content-Type: application/json
 
-{
-  "waka": "大伴の見つとは言はじあかねさし照れる月夜に直に逢へりとも",
-  "butate": "相聞歌",
-  "author": "賀茂女王",
-  "bangou": 565,
-  "maki": 4,
-  "yomikudashi": "賀茂女王の歌一首"
-}
+  {
+    "waka": "君待つと我が恋ひ居れば我がやどの簾動かし秋の風吹く",
+    "butate": "相聞歌",
+    "author": "額田王",
+    "bangou": 1606,
+    "maki": 8,
+    "yomikudashi": "額田王の近江天皇を思ひて作る歌一首"
+  }
 
 ### 検索結果確認
 GET http://localhost:9200/sample_index/_search HTTP/1.1
@@ -151,19 +157,46 @@ Content-Type: application/json
 
 {
   "query": {
-    "match": {
-      "waka": {
-        "query": "あかねさす"
+    "bool": {
+      "must": {
+        "match": {
+          "waka": {
+            "query": "あかねさす"
+          }
+        }
+      },
+    }
+  },
+  "fields": [
+    "waka"
+  ],
+  "_source": false
+}
+
+### 検索結果確認
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "waka": {
+            "query": "あかねさす"
+          }
+        }
+      },
+      "filter": {
+        "term": {
+          "butate": "挽歌"
+        }
       }
     }
   },
   "fields": [
     "waka",
-    "butate",
-    "author",
-    "bangou",
-    "maki",
-    "yomikudashi"
+    "butate"
   ],
   "_source": false
 }
@@ -175,22 +208,47 @@ Content-Type: application/json
 {
   "query": {
     "multi_match": {
-      "query": "挽歌",
+      "query": "あかねさす ぬばたまの",
       "fields": ["waka", "yomikudashi", "butate", "author", "butate"]
     }
   },
   "fields": [
-    "waka",
-    "butate",
-    "author",
-    "bangou",
-    "maki",
-    "yomikudashi"
+    "waka"
   ],
   "_source": false
 }
 
-### 検索結果確認　（multi mutch）
+### 検索結果確認　（キーワードが2つは関連度順）
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "multi_match": {
+            "query": "あかねさす",
+            "fields": ["waka", "yomikudashi", "butate", "author"]
+          }
+        },
+        {
+          "multi_match": {
+            "query": "ぬばたまの",
+            "fields": ["waka", "yomikudashi", "butate", "author"]
+          }
+        }
+      ],
+      "minimum_should_match": 1
+    }
+  },
+  "fields": [
+    "waka"
+  ],
+  "_source": false
+}
+
+### 検索結果確認
 GET http://localhost:9200/sample_index/_search HTTP/1.1
 Content-Type: application/json
 
@@ -215,6 +273,233 @@ Content-Type: application/json
     "bangou",
     "maki",
     "yomikudashi"
+  ],
+  "_source": false
+}
+
+### 関連
+
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "yomikudashi": {
+              "query": "天皇の、蒲生野に遊猟したまひし時に、額田王の作れる歌",
+              "fuzziness": "AUTO",
+              "minimum_should_match": "70%"
+            }     
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "waka",
+    "bangou"
+  ],
+  "_source": false
+}
+
+### 関連
+
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "function_score": {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "yomikudashi": {
+                        "query": "天皇の、蒲生野に遊猟したまひし時に、額田王の作れる歌",
+                        "fuzziness": "AUTO",
+                        "minimum_should_match": "70%"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "functions": [
+              {
+                "weight": 4.0
+              },
+              {
+                "gauss": {
+                  "bangou": {
+                    "origin": 20,
+                    "scale": 2,
+                    "offset": 0,
+                    "decay": 0.1
+                  }
+                }
+              }
+            ],
+            "score_mode": "multiply",
+            "boost_mode": "multiply"
+          }
+        }
+      ],
+      "must_not": [
+        { "term": { "bangou": 20 } }
+      ]
+    }
+  },
+  "fields": [
+    "waka",
+    "bangou"
+  ],
+  "_source": false
+}
+
+### 関連
+
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "bool": {
+            "must": [
+              { "term": { "author": "額田王" }},
+              { "term": { "maki": 1 }},
+              { "term": { "butate": "雑歌" }}
+            ],
+            "boost": 0.5
+          }
+        },
+        {
+          "bool": {
+            "must": [
+              { "term": { "author": "額田王" }},
+              { "term": { "butate": "雑歌" }}
+            ],
+            "boost": 0.3
+          }
+        },
+        {
+          "bool": {
+            "must": [
+              { "term": { "author": "額田王" }},
+              { "term": { "maki": 1 }}
+            ],
+            "boost": 0.1
+          }
+        },
+        {
+          "bool": {
+            "must": [
+              { "term": { "author": "額田王" }}
+            ],
+            "boost": 3.0
+          }
+        }
+      ],
+      "minimum_should_match": 1
+    }
+  },
+  "fields": [
+    "waka",
+    "butate"
+  ],
+  "_source": false
+}
+
+### 関連
+GET http://localhost:9200/sample_index/_search HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "yomikudashi": {
+              "query": "天皇の、蒲生野に遊猟したまひし時に、額田王の作れる歌",
+              "fuzziness": "AUTO",
+              "minimum_should_match": "70%"
+            }
+          }
+        },
+        {
+          "bool": {
+            "should": [
+              {
+                "bool": {
+                  "must": [
+                    { "term": { "author": "額田王" }},
+                    { "term": { "maki": 1 }},
+                    { "term": { "butate": "雑歌" }}
+                  ],
+                  "boost": 0.5
+                }
+              },
+              {
+                "bool": {
+                  "must": [
+                    { "term": { "author": "額田王" }},
+                    { "term": { "butate": "雑歌" }}
+                  ],
+                  "boost": 0.3
+                }
+              },
+              {
+                "bool": {
+                  "must": [
+                    { "term": { "author": "額田王" }},
+                    { "term": { "maki": 1 }}
+                  ],
+                  "boost": 0.3
+                }
+              },
+              {
+                "bool": {
+                  "must": [
+                    { "term": { "author": "額田王" }}
+                  ],
+                  "boost": 3.0
+                }
+              }
+            ],
+            "minimum_should_match": 1
+          }
+        },
+        {
+          "bool": {
+            "must": {
+              "match": {
+                "waka": {
+                  "query": "あかねさす紫野行き標野行き野守は見ずや君が袖振る"
+                }
+              }
+            },
+            "boost": 1.0
+          }
+        }
+      ],
+      "minimum_should_match": 1,
+      "must_not": [
+        { "term": { "bangou": 20 } }
+      ]
+    }
+  },
+  "fields": [
+    "waka"
   ],
   "_source": false
 }
@@ -291,7 +576,7 @@ Content-Type: application/json
                     { "term": { "author": "額田王" }},
                     { "term": { "maki": 1 }}
                   ],
-                  "boost": 0.1
+                  "boost": 0.3
                 }
               },
               {
@@ -311,8 +596,7 @@ Content-Type: application/json
             "must": {
               "match": {
                 "waka": {
-                  "query": "あかねさす紫野行き標野行き野守は見ずや君が袖振る",
-                  "fuzziness": "AUTO"
+                  "query": "あかねさす紫野行き標野行き野守は見ずや君が袖振る"
                 }
               }
             },
@@ -328,11 +612,9 @@ Content-Type: application/json
   },
   "fields": [
     "waka",
-    "butate",
-    "author",
     "bangou",
-    "maki",
-    "yomikudashi"
+    "author",
+    "butate"
   ],
   "_source": false
 }
